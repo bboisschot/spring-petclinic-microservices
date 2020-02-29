@@ -15,12 +15,11 @@
  */
 package org.springframework.samples.petclinic.customers.web;
 
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.samples.petclinic.customers.model.*;
-import org.springframework.samples.petclinic.monitoring.Monitored;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,13 +32,14 @@ import java.util.Optional;
  * @author Maciej Szarlinski
  */
 @RestController
+@Timed("petclinic.pet")
 @RequiredArgsConstructor
 @Slf4j
 class PetResource {
 
     private final PetRepository petRepository;
-
     private final OwnerRepository ownerRepository;
+
 
     @GetMapping("/petTypes")
     public List<PetType> getPetTypes() {
@@ -47,9 +47,8 @@ class PetResource {
     }
 
     @PostMapping("/owners/{ownerId}/pets")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Monitored
-    public void processCreationForm(
+    @ResponseStatus(HttpStatus.CREATED)
+    public Pet processCreationForm(
         @RequestBody PetRequest petRequest,
         @PathVariable("ownerId") int ownerId) {
 
@@ -58,19 +57,18 @@ class PetResource {
         Owner owner = optionalOwner.orElseThrow(() -> new ResourceNotFoundException("Owner "+ownerId+" not found"));
         owner.addPet(pet);
 
-        save(pet, petRequest);
+        return save(pet, petRequest);
     }
 
     @PutMapping("/owners/*/pets/{petId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Monitored
     public void processUpdateForm(@RequestBody PetRequest petRequest) {
         int petId = petRequest.getId();
         Pet pet = findPetById(petId);
         save(pet, petRequest);
     }
 
-    private void save(final Pet pet, final PetRequest petRequest) {
+    private Pet save(final Pet pet, final PetRequest petRequest) {
 
         pet.setName(petRequest.getName());
         pet.setBirthDate(petRequest.getBirthDate());
@@ -79,7 +77,7 @@ class PetResource {
             .ifPresent(pet::setType);
 
         log.info("Saving pet {}", pet);
-        petRepository.save(pet);
+        return petRepository.save(pet);
     }
 
     @GetMapping("owners/*/pets/{petId}")
